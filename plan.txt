@@ -1,0 +1,176 @@
+🧠 PROJECT: Gesture-Controlled Sway Interface (Mini System)
+🎯 Objective
+
+Detect hand gestures via MediaPipe and trigger system-level commands (Sway + shell) using Python.
+
+🧩 SYSTEM ARCHITECTURE
+[ Webcam ]
+     ↓
+[ OpenCV Capture ]
+     ↓
+[ MediaPipe Hand Tracking ]
+     ↓
+[ Gesture Recognition Layer ]
+     ↓
+[ State Filter (debounce + confidence) ]
+     ↓
+[ Action Dispatcher ]
+     ↓
+[ swaymsg / fish / system commands ]
+⚙️ TECH STACK
+Core
+Python 3.10+
+OpenCV
+MediaPipe
+OS Integration
+swaymsg (for compositor control)
+fish / bash (for scripts)
+subprocess (Python bridge)
+Optional (later)
+numpy
+pyyaml (config-driven gestures)
+📦 INSTALLATION (Garuda / Arch)
+sudo pacman -S python python-pip opencv
+pip install mediapipe numpy
+
+Check:
+
+which swaymsg
+🧱 MODULE DESIGN
+1. camera.py
+
+Handles webcam feed.
+
+import cv2
+
+cap = cv2.VideoCapture(0)
+2. hand_tracker.py
+
+Uses MediaPipe:
+
+import mediapipe as mp
+
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands(max_num_hands=1)
+
+Output:
+
+21 landmarks per hand
+3. gesture_engine.py 🔥 (CORE)
+
+Convert landmarks → gestures.
+
+Example logic:
+def is_fist(landmarks):
+    return all(finger_folded(landmarks))
+
+You’ll compute:
+
+Finger states (up/down)
+Relative positions
+
+👉 Don’t overcomplicate. Start with:
+
+FIST
+OPEN_PALM
+TWO_FINGERS
+4. state_manager.py (ANTI-NOISE)
+
+Problem:
+Gesture flickers = chaos
+
+Solution:
+
+if gesture == last_gesture for N frames:
+    trigger()
+
+Basic debounce:
+
+5–10 consistent frames before action
+5. action_dispatcher.py
+
+This is where magic hits OS.
+
+import subprocess
+
+def execute(action):
+    subprocess.run(action)
+
+Mapping:
+
+GESTURE_MAP = {
+    "FIST": ["swaymsg", "workspace", "1"],
+    "PALM": ["swaymsg", "workspace", "2"],
+    "TWO": ["fish", "-c", "notify-send 'Yo'"]
+}
+6. main.py
+while True:
+    frame = get_frame()
+    landmarks = detect_hand(frame)
+    gesture = classify(landmarks)
+
+    if stable(gesture):
+        execute(GESTURE_MAP[gesture])
+🧠 GESTURE DEFINITIONS (START SIMPLE)
+Gesture	Logic
+FIST	All fingers down
+PALM	All fingers up
+TWO	Index + middle up
+
+Don’t try 10 gestures.
+Start with 3 clean ones.
+
+⚡ SWAY INTEGRATION IDEAS
+
+Use swaymsg:
+
+swaymsg workspace 1
+swaymsg focus left
+swaymsg kill
+Suggested mapping:
+Gesture	Action
+✊ FIST	workspace 1
+✋ PALM	workspace 2
+✌️ TWO	focus right
+⚠️ CRITICAL ENGINEERING DETAILS
+1. Latency control
+Use lower resolution:
+cap.set(3, 640)
+cap.set(4, 480)
+2. FPS stability
+Don’t run heavy logic every frame
+Skip frames if needed
+3. Avoid repeated triggers
+
+Bad:
+
+FIST → triggers 20 times/sec 💀
+
+Fix:
+
+Cooldown system
+last_trigger_time = 0
+cooldown = 1.0  # seconds
+4. Wayland Reality
+
+You cannot fake mouse/keyboard easily
+But:
+
+swaymsg = fully supported ✅
+
+You picked the correct architecture.
+
+🧪 MVP CHECKLIST (finish before 6 PM)
+Phase 1 (1–2 hrs)
+ Camera feed working
+ Hand detection visible
+Phase 2 (2–3 hrs)
+ 1 gesture (FIST) detection
+ Trigger notify-send
+Phase 3 (2 hrs)
+ Integrate swaymsg
+ Add 2 more gestures
+Phase 4 (1 hr)
+ Add debounce + cooldown
+
+👉 That’s your MVP. Ship it.

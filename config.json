@@ -1,0 +1,18 @@
+{
+  "gestures": {
+    "FIST": ["swaymsg", "workspace", "1"],
+    "PALM": ["swaymsg", "workspace", "2"],
+    "PEACE": ["notify-send", "Gesture Control", "System is Ready"]
+  },
+  "settings": {
+    "camera_id": 0,
+    "resolution": [640, 480],
+    "model_complexity": 0,
+    "min_detection_confidence": 0.7,
+    "min_tracking_confidence": 0.5,
+    "debounce_frames": 5,
+    "cooldown_seconds": 1.0,
+    "skip_frames": 2,
+    "headless": false
+  }
+}
