@@ -1,21 +1,55 @@
 {
   "gestures": {
     "Right": {
-      "FIST": ["swaymsg", "workspace", "1"],
-      "PALM": ["swaymsg", "workspace", "2"],
-      "PEACE": ["swaymsg", "workspace", "3"],
-      "POINT": ["swaymsg", "workspace", "next"]
+      "FIST": [
+        "swaymsg",
+        "workspace",
+        "1"
+      ],
+      "PALM": [
+        "swaymsg",
+        "workspace",
+        "2"
+      ],
+      "PEACE": [
+        "swaymsg",
+        "workspace",
+        "3"
+      ],
+      "POINT": [
+        "swaymsg",
+        "workspace",
+        "next"
+      ]
     },
     "Left": {
-      "FIST": ["swaymsg", "kill"],
-      "PALM": ["swaymsg", "exec", "firefox"],
-      "PEACE": ["swaymsg", "exec", "foot"],
-      "POINT": ["swaymsg", "floating", "toggle"]
+      "FIST": [
+        "swaymsg",
+        "kill"
+      ],
+      "PALM": [
+        "swaymsg",
+        "exec",
+        "brave"
+      ],
+      "PEACE": [
+        "swaymsg",
+        "exec",
+        "kitty"
+      ],
+      "POINT": [
+        "swaymsg",
+        "floating",
+        "toggle"
+      ]
     }
   },
   "settings": {
     "camera_id": 0,
-    "resolution": [640, 480],
+    "resolution": [
+      640,
+      480
+    ],
     "model_complexity": 0,
     "min_detection_confidence": 0.7,
     "min_tracking_confidence": 0.5,

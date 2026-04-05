@@ -2,7 +2,8 @@ import cv2
 import json
 import logging
 import time
-
+import os
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
 from camera import Camera
 from detector import HandDetector
 from engine import GestureEngine
