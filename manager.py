@@ -2,7 +2,7 @@ import time
 from collections import deque, Counter
 
 class StateManager:
-    def __init__(self, debounce_frames=5, cooldown_seconds=1.0):
+    def __init__(self, debounce_frames=5, cooldown_seconds=3.0):
         self.debounce_frames = debounce_frames
         self.cooldown_seconds = cooldown_seconds
         self.gesture_buffer = deque(maxlen=debounce_frames)
