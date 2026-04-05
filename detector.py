@@ -3,7 +3,7 @@ import logging
 import cv2
 
 class HandDetector:
-    def __init__(self, mode=False, max_hands=1, complexity=0, detection_con=0.5, track_con=0.5):
+    def __init__(self, mode=False, max_hands=2, complexity=0, detection_con=0.5, track_con=0.5):
         self.mode = mode
         self.max_hands = max_hands
         self.complexity = complexity
@@ -31,14 +31,23 @@ class HandDetector:
         return self.results
 
     def get_landmarks(self, frame):
-        landmarks = []
+        hand_data = []
         if self.results.multi_hand_landmarks:
-            for hand_lms in self.results.multi_hand_landmarks:
+            for idx, hand_lms in enumerate(self.results.multi_hand_landmarks):
+                # Get Handedness (Left/Right)
+                handedness = self.results.multi_handedness[idx].classification[0].label
+                
+                landmarks = []
                 for id, lm in enumerate(hand_lms.landmark):
                     h, w, c = frame.shape
                     cx, cy = int(lm.x * w), int(lm.y * h)
                     landmarks.append([id, cx, cy, lm.z])
-        return landmarks
+                
+                hand_data.append({
+                    "label": handedness,
+                    "landmarks": landmarks
+                })
+        return hand_data
 
     def draw_landmarks(self, frame):
         if self.results.multi_hand_landmarks:

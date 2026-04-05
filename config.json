@@ -1,8 +1,17 @@
 {
   "gestures": {
-    "FIST": ["swaymsg", "workspace", "1"],
-    "PALM": ["swaymsg", "workspace", "2"],
-    "PEACE": ["notify-send", "Gesture Control", "System is Ready"]
+    "Right": {
+      "FIST": ["swaymsg", "workspace", "1"],
+      "PALM": ["swaymsg", "workspace", "2"],
+      "PEACE": ["swaymsg", "workspace", "3"],
+      "POINT": ["swaymsg", "workspace", "next"]
+    },
+    "Left": {
+      "FIST": ["swaymsg", "kill"],
+      "PALM": ["swaymsg", "exec", "firefox"],
+      "PEACE": ["swaymsg", "exec", "foot"],
+      "POINT": ["swaymsg", "floating", "toggle"]
+    }
   },
   "settings": {
     "camera_id": 0,
@@ -11,7 +20,7 @@
     "min_detection_confidence": 0.7,
     "min_tracking_confidence": 0.5,
     "debounce_frames": 5,
-    "cooldown_seconds": 1.0,
+    "cooldown_seconds": 0.5,
     "skip_frames": 2,
     "headless": false
   }

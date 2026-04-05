@@ -18,18 +18,27 @@ class Visualizer:
                     self.font, self.font_scale, (0, 255, 0), self.thickness)
         return frame
 
-    def draw_status(self, frame, gesture, stable=False, confidence=0.0):
-        color = (0, 255, 0) if stable else (0, 0, 255)
-        text = f"GESTURE: {gesture}" if gesture else "NO GESTURE"
+    def draw_status(self, frame, label, gesture, stable=False, confidence=0.0):
+        # Determine color
+        color = (0, 255, 0) if (stable and gesture) else (0, 0, 255)
         
-        cv2.putText(frame, text, (10, 70), 
+        # Determine position based on label
+        # Right hand on the right side, Left hand on the left
+        if label == "Right":
+            x, y = frame.shape[1] - 250, 70
+        else:
+            x, y = 10, 70
+            
+        text = f"{label}: {gesture}" if gesture else f"{label}: --"
+        
+        cv2.putText(frame, text, (x, y), 
                     self.font, self.font_scale, color, self.thickness)
         
-        # Progress bar/indicator for stability
+        # Progress bar
         if gesture:
-            cv2.rectangle(frame, (10, 85), (210, 100), (50, 50, 50), -1)
+            cv2.rectangle(frame, (x, y + 15), (x + 200, y + 30), (50, 50, 50), -1)
             filled_w = int(200 * confidence)
-            cv2.rectangle(frame, (10, 85), (10 + filled_w, 100), color, -1)
+            cv2.rectangle(frame, (x, y + 15), (x + filled_w, y + 30), color, -1)
         
         return frame
 

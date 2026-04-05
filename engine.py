@@ -43,6 +43,7 @@ class GestureEngine:
             return None
 
         # [Thumb, Index, Middle, Ring, Pinky]
+        
         # FIST: [False, False, False, False, False]
         if all(not s for s in finger_states[1:]): # Ignore thumb for basic fist
             return "FIST"
@@ -54,6 +55,14 @@ class GestureEngine:
         # PEACE: [False, True, True, False, False]
         if finger_states[1] and finger_states[2] and not finger_states[3] and not finger_states[4]:
             return "PEACE"
+            
+        # POINT: [False, True, False, False, False]
+        if finger_states[1] and all(not s for s in finger_states[2:]):
+            return "POINT"
+
+        # THUMBS_UP: [True, False, False, False, False]
+        if finger_states[0] and all(not s for s in finger_states[1:]):
+            return "THUMBS_UP"
 
         return None
 
