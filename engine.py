@@ -16,22 +16,30 @@ class GestureEngine:
         if not landmarks:
             return None
 
-        # Landmarks format: [id, x, y, z]
-        # Coordinates are screen-space (pixels) from HandDetector
+        # Hand Scale (Distance from wrist to middle finger base)
+        # Used to normalize the "sharpness" threshold based on distance from camera
+        wrist = landmarks[0]
+        middle_mcp = landmarks[9]
+        scale = math.sqrt((wrist[1]-middle_mcp[1])**2 + (wrist[2]-middle_mcp[2])**2)
+        
+        # Sharpness Threshold (e.g., tip must be 20% of hand scale above joint)
+        threshold = scale * 0.2
+
         fingers = []
 
-        # Thumb logic (horizontal extension for right/left hand)
-        # Using simple x comparison for now, but y can be used if hand is vertical
-        # In a mirror view, if thumb_tip.x > thumb_base.x, thumb is likely out
-        if landmarks[self.thumb_tip][1] > landmarks[self.thumb_ip][1]:
+        # Thumb logic (horizontal extension)
+        # Thumb is "up" if its tip is significantly outside its MCP/IP joint
+        if abs(landmarks[self.thumb_tip][1] - landmarks[self.thumb_ip][1]) > threshold:
             fingers.append(True)
         else:
             fingers.append(False)
 
-        # 4 Fingers logic (vertical comparison)
+        # 4 Fingers logic (vertical comparison + sharpness threshold)
         for i in range(len(self.tip_ids)):
-            # If tip y is higher (smaller value) than PIP y, finger is UP
-            if landmarks[self.tip_ids[i]][2] < landmarks[self.pip_ids[i]][2]:
+            # diff = pip.y - tip.y
+            diff = landmarks[self.pip_ids[i]][2] - landmarks[self.tip_ids[i]][2]
+            
+            if diff > threshold:
                 fingers.append(True)
             else:
                 fingers.append(False)
@@ -59,6 +67,10 @@ class GestureEngine:
         # POINT: [False, True, False, False, False]
         if finger_states[1] and all(not s for s in finger_states[2:]):
             return "POINT"
+
+        # YO: [True, True, False, False, True] (Thumb, Index, Pinky)
+        if finger_states[0] and finger_states[1] and finger_states[4] and not finger_states[2] and not finger_states[3]:
+            return "YO"
 
         # THUMBS_UP: [True, False, False, False, False]
         if finger_states[0] and all(not s for s in finger_states[1:]):

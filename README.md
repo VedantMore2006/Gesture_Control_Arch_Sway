@@ -33,8 +33,8 @@ V2 uses independent controllers for each hand, allowing for simultaneous actions
 | Gesture | Logic | Default Sway Action |
 | :--- | :--- | :--- |
 | ✊ **FIST** | All fingers folded | `swaymsg kill` (Close Window) |
-| ✋ **PALM** | All fingers extended | `swaymsg exec firefox` |
-| ✌️ **PEACE** | Index + Middle up | `swaymsg exec foot` (Terminal) |
+| ✋ **PALM** | All fingers extended | `swaymsg exec brave` |
+| ✌️ **PEACE** | Index + Middle up | `swaymsg exec kitty` (Terminal) |
 | ☝️ **POINT** | Index up only | `swaymsg floating toggle` |
 
 ---

@@ -10,6 +10,30 @@ from engine import GestureEngine
 from manager import StateManager
 from dispatcher import ActionDispatcher
 from visualizer import Visualizer
+import subprocess
+import time 
+
+def enforce_window():
+    for _ in range(5):  # retry loop
+        subprocess.run([
+            "swaymsg",
+            '[title="Gesture Control"]',
+            "floating enable"
+        ])
+
+        subprocess.run([
+            "swaymsg",
+            '[title="Gesture Control"]',
+            "sticky enable"
+        ])
+
+        subprocess.run([
+            "swaymsg",
+            '[title="Gesture Control"]',
+            "move position 1500 40"
+        ])
+
+        time.sleep(0.4)
 
 class GestureControlApp:
     def __init__(self, config_path="config.json"):
@@ -152,6 +176,9 @@ class GestureControlApp:
             logging.info("App shutdown.")
 
 if __name__ == "__main__":
+    # call this AFTER window starts
+    time.sleep(1)
+    enforce_window()
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s'

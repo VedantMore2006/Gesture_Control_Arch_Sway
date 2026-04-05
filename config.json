@@ -41,6 +41,10 @@
         "swaymsg",
         "floating",
         "toggle"
+      ],
+      "YO": [
+        "wtype",
+        "HI"
       ]
     }
   },
