@@ -1,0 +1,825 @@
+================================================================================
+PROJECT EXTRACTION REPORT
+================================================================================
+
+PROJECT STRUCTURE:
+--------------------------------------------------------------------------------
+
+Gesture_Control/
+├── README.md
+├── camera.py
+├── config.json
+├── detector.py
+├── dispatcher.py
+├── engine.py
+├── main.py
+├── manager.py
+├── plan.txt
+├── project_extract.py
+├── project_extraction.txt
+├── requirements.txt
+└── visualizer.py
+
+
+================================================================================
+FILE CONTENTS
+================================================================================
+
+
+================================================================================
+FILE: camera.py
+================================================================================
+
+import cv2
+import logging
+
+class Camera:
+    def __init__(self, camera_id=0, resolution=(640, 480)):
+        self.camera_id = camera_id
+        self.resolution = resolution
+        self.cap = None
+        self._setup()
+
+    def _setup(self):
+        self.cap = cv2.VideoCapture(self.camera_id)
+        if not self.cap.isOpened():
+            logging.error(f"Failed to open camera: {self.camera_id}")
+            raise RuntimeError("Could not open webcam.")
+        
+        # Set resolution
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.resolution[0])
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.resolution[1])
+        
+        logging.info(f"Camera initialized with resolution {self.resolution}")
+
+    def get_frame(self):
+        ret, frame = self.cap.read()
+        if not ret:
+            logging.warning("Failed to read frame from camera.")
+            return None
+        # Flip frame horizontally for a more intuitive "mirror" feel
+        return cv2.flip(frame, 1)
+
+    def release(self):
+        if self.cap:
+            self.cap.release()
+            logging.info("Camera released.")
+
+if __name__ == "__main__":
+    # Quick test
+    logging.basicConfig(level=logging.INFO)
+    cam = Camera()
+    try:
+        while True:
+            frame = cam.get_frame()
+            if frame is not None:
+                cv2.imshow("Test Frame", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        cam.release()
+        cv2.destroyAllWindows()
+
+
+================================================================================
+FILE: detector.py
+================================================================================
+
+import mediapipe as mp
+import logging
+import cv2
+
+class HandDetector:
+    def __init__(self, mode=False, max_hands=2, complexity=0, detection_con=0.5, track_con=0.5):
+        self.mode = mode
+        self.max_hands = max_hands
+        self.complexity = complexity
+        self.detection_con = detection_con
+        self.track_con = track_con
+
+        # Init MediaPipe Hands
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(
+            static_image_mode=self.mode,
+            max_num_hands=self.max_hands,
+            model_complexity=self.complexity,
+            min_detection_confidence=self.detection_con,
+            min_tracking_confidence=self.track_con
+        )
+        self.mp_draw = mp.solutions.drawing_utils
+        logging.info(f"HandDetector initialized (max_hands={max_hands}, complexity={complexity})")
+
+    def find_hands(self, frame):
+        # Convert to RGB as MediaPipe requires it
+        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        self.results = self.hands.process(img_rgb)
+        
+        # We can also return the frame with landmarks drawn if needed
+        return self.results
+
+    def get_landmarks(self, frame):
+        hand_data = []
+        if self.results.multi_hand_landmarks:
+            for idx, hand_lms in enumerate(self.results.multi_hand_landmarks):
+                # Get Handedness (Left/Right)
+                handedness = self.results.multi_handedness[idx].classification[0].label
+                
+                landmarks = []
+                for id, lm in enumerate(hand_lms.landmark):
+                    h, w, c = frame.shape
+                    cx, cy = int(lm.x * w), int(lm.y * h)
+                    landmarks.append([id, cx, cy, lm.z])
+                
+                hand_data.append({
+                    "label": handedness,
+                    "landmarks": landmarks
+                })
+        return hand_data
+
+    def draw_landmarks(self, frame):
+        if self.results.multi_hand_landmarks:
+            for hand_lms in self.results.multi_hand_landmarks:
+                self.mp_draw.draw_landmarks(frame, hand_lms, self.mp_hands.HAND_CONNECTIONS)
+        return frame
+
+if __name__ == "__main__":
+    import cv2
+    from camera import Camera
+    logging.basicConfig(level=logging.INFO)
+    
+    cam = Camera()
+    detector = HandDetector()
+    
+    try:
+        while True:
+            frame = cam.get_frame()
+            if frame is None:
+                break
+            
+            results = detector.find_hands(frame)
+            frame = detector.draw_landmarks(frame)
+            
+            cv2.imshow("Hand Detection Test", frame)
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    finally:
+        cam.release()
+        cv2.destroyAllWindows()
+
+
+================================================================================
+FILE: dispatcher.py
+================================================================================
+
+import subprocess
+import logging
+
+class ActionDispatcher:
+    def __init__(self, gesture_map):
+        self.gesture_map = gesture_map
+        logging.info(f"ActionDispatcher initialized with {len(gesture_map)} mappings.")
+
+    def run_command(self, gesture):
+        if gesture in self.gesture_map:
+            cmd = self.gesture_map[gesture]
+            logging.info(f"Executing: {cmd} for gesture: {gesture}")
+            
+            try:
+                # Use shell=True if the command is a string, otherwise use list
+                if isinstance(cmd, list):
+                    subprocess.run(cmd, check=True)
+                else:
+                    subprocess.run(cmd, shell=True, check=True)
+                return True
+            except subprocess.CalledProcessError as e:
+                logging.error(f"Command failed: {e}")
+            except Exception as e:
+                logging.error(f"Error executing command: {e}")
+        else:
+            logging.warning(f"No command mapped for gesture: {gesture}")
+        return False
+
+if __name__ == "__main__":
+    # Test dispatcher
+    logging.basicConfig(level=logging.INFO)
+    test_map = {
+        "TEST": ["notify-send", "Gesture Control", "Test Action Executed"]
+    }
+    dispatcher = ActionDispatcher(test_map)
+    dispatcher.run_command("TEST")
+
+
+================================================================================
+FILE: engine.py
+================================================================================
+
+import math
+
+class GestureEngine:
+    def __init__(self):
+        # MediaPipe Landmark IDs for tips and PIP joints
+        self.tip_ids = [8, 12, 16, 20] # Index, Middle, Ring, Pinky
+        self.pip_ids = [6, 10, 14, 18] # Respective PIP joints
+        self.thumb_tip = 4
+        self.thumb_ip = 2
+
+    def get_finger_states(self, landmarks):
+        """
+        Returns a list of booleans: [Thumb, Index, Middle, Ring, Pinky]
+        True = Extended (Up), False = Folded (Down)
+        """
+        if not landmarks:
+            return None
+
+        # Hand Scale (Distance from wrist to middle finger base)
+        # Used to normalize the "sharpness" threshold based on distance from camera
+        wrist = landmarks[0]
+        middle_mcp = landmarks[9]
+        scale = math.sqrt((wrist[1]-middle_mcp[1])**2 + (wrist[2]-middle_mcp[2])**2)
+        
+        # Sharpness Threshold (e.g., tip must be 20% of hand scale above joint)
+        threshold = scale * 0.2
+
+        fingers = []
+
+        # Thumb logic (horizontal extension)
+        # Thumb is "up" if its tip is significantly outside its MCP/IP joint
+        if abs(landmarks[self.thumb_tip][1] - landmarks[self.thumb_ip][1]) > threshold:
+            fingers.append(True)
+        else:
+            fingers.append(False)
+
+        # 4 Fingers logic (vertical comparison + sharpness threshold)
+        for i in range(len(self.tip_ids)):
+            # diff = pip.y - tip.y
+            diff = landmarks[self.pip_ids[i]][2] - landmarks[self.tip_ids[i]][2]
+            
+            if diff > threshold:
+                fingers.append(True)
+            else:
+                fingers.append(False)
+
+        return fingers
+
+    def classify_gesture(self, finger_states):
+        if not finger_states:
+            return None
+
+        # [Thumb, Index, Middle, Ring, Pinky]
+        
+        # FIST: [False, False, False, False, False]
+        if all(not s for s in finger_states[1:]): # Ignore thumb for basic fist
+            return "FIST"
+
+        # PALM: [True, True, True, True, True]
+        if all(finger_states[1:]):
+            return "PALM"
+
+        # PEACE: [False, True, True, False, False]
+        if finger_states[1] and finger_states[2] and not finger_states[3] and not finger_states[4]:
+            return "PEACE"
+            
+        # POINT: [False, True, False, False, False]
+        if finger_states[1] and all(not s for s in finger_states[2:]):
+            return "POINT"
+
+        # YO: [True, True, False, False, True] (Thumb, Index, Pinky)
+        if finger_states[0] and finger_states[1] and finger_states[4] and not finger_states[2] and not finger_states[3]:
+            return "YO"
+
+        # THUMBS_UP: [True, False, False, False, False]
+        if finger_states[0] and all(not s for s in finger_states[1:]):
+            return "THUMBS_UP"
+
+        return None
+
+if __name__ == "__main__":
+    # Test simple logic
+    engine = GestureEngine()
+    print(f"Fist Test: {engine.classify_gesture([False, False, False, False, False])}")
+    print(f"Palm Test: {engine.classify_gesture([True, True, True, True, True])}")
+    print(f"Peace Test: {engine.classify_gesture([False, True, True, False, False])}")
+
+
+================================================================================
+FILE: main.py
+================================================================================
+
+import cv2
+import json
+import logging
+import time
+import os
+os.environ['QT_QPA_PLATFORM'] = 'xcb'
+from camera import Camera
+from detector import HandDetector
+from engine import GestureEngine
+from manager import StateManager
+from dispatcher import ActionDispatcher
+from visualizer import Visualizer
+import subprocess
+import time 
+
+def enforce_window():
+    for _ in range(5):  # retry loop
+        subprocess.run([
+            "swaymsg",
+            '[title="Gesture Control"]',
+            "floating enable"
+        ])
+
+        subprocess.run([
+            "swaymsg",
+            '[title="Gesture Control"]',
+            "sticky enable"
+        ])
+
+        subprocess.run([
+            "swaymsg",
+            '[title="Gesture Control"]',
+            "move position 1500 40"
+        ])
+
+        time.sleep(0.4)
+
+class GestureControlApp:
+    def __init__(self, config_path="config.json"):
+        self.load_config(config_path)
+        
+        # Init hardware
+        self.camera = Camera(
+            camera_id=self.config['settings']['camera_id'],
+            resolution=tuple(self.config['settings']['resolution'])
+        )
+        
+        # Init detection (2 hands)
+        self.detector = HandDetector(
+            max_hands=2,
+            complexity=self.config['settings']['model_complexity'],
+            detection_con=self.config['settings']['min_detection_confidence'],
+            track_con=self.config['settings']['min_tracking_confidence']
+        )
+        
+        self.engine = GestureEngine()
+        
+        # Two managers (one per hand)
+        self.managers = {
+            "Right": StateManager(
+                debounce_frames=self.config['settings']['debounce_frames'],
+                cooldown_seconds=self.config['settings']['cooldown_seconds']
+            ),
+            "Left": StateManager(
+                debounce_frames=self.config['settings']['debounce_frames'],
+                cooldown_seconds=self.config['settings']['cooldown_seconds']
+            )
+        }
+        
+        # Dispatchers per hand
+        self.dispatchers = {
+            "Right": ActionDispatcher(self.config['gestures'].get('Right', {})),
+            "Left": ActionDispatcher(self.config['gestures'].get('Left', {}))
+        }
+        
+        self.visualizer = Visualizer()
+        
+        self.skip_frames = self.config['settings'].get('skip_frames', 0)
+        self.headless = self.config['settings'].get('headless', False)
+        self.frame_count = 0
+        self.running = False
+        
+        if self.headless:
+            logging.info("GestureControlApp running in HEADLESS mode.")
+        
+        logging.info("GestureControlApp V3 initialized.")
+
+    def load_config(self, path):
+        try:
+            with open(path, 'r') as f:
+                self.config = json.load(f)
+        except Exception as e:
+            logging.error(f"Failed to load config: {e}")
+            raise
+
+    def run(self):
+        self.running = True
+        logging.info("Starting V2 main loop...")
+        
+        try:
+            while self.running:
+                frame = self.camera.get_frame()
+                if frame is None:
+                    break
+                
+                self.frame_count += 1
+                
+                # 1. Detection
+                self.detector.find_hands(frame)
+                all_hand_data = self.detector.get_landmarks(frame)
+                
+                # Active hands in this frame
+                active_labels = []
+                
+                # 2. Recognition & Dispatch for each hand found
+                for hand in all_hand_data:
+                    label = hand['label'] # "Left" or "Right"
+                    landmarks = hand['landmarks']
+                    active_labels.append(label)
+                    
+                    if landmarks:
+                        # a) Classify gesture
+                        finger_states = self.engine.get_finger_states(landmarks)
+                        gesture = self.engine.classify_gesture(finger_states)
+                        
+                        # b) Update manager for THIS hand
+                        stable_gesture, confidence = self.managers[label].update(gesture)
+                        
+                        # c) Dispatch if stable and NEW (change-only trigger)
+                        if stable_gesture and self.managers[label].can_trigger():
+                            success = self.dispatchers[label].run_command(stable_gesture)
+                            if success:
+                                self.managers[label].trigger_success()
+                        
+                        # d) Visualize this hand
+                        if not self.headless:
+                            try:
+                                frame = self.visualizer.draw_status(frame, label, stable_gesture, 
+                                                                   stable=(stable_gesture is not None), 
+                                                                   confidence=confidence)
+                            except Exception as e:
+                                logging.warning(f"GUI Error: {e}. Switching to headless.")
+                                self.headless = True
+                
+                # Update managers for hands NOT seen in this frame (to reset buffers)
+                for label, mgr in self.managers.items():
+                    if label not in active_labels:
+                        mgr.update(None)
+
+                # 3. HUD Overlay
+                if not self.headless:
+                    try:
+                        frame = self.detector.draw_landmarks(frame)
+                        frame = self.visualizer.draw_fps(frame)
+                        cv2.imshow("Gesture Control V2 (Sway)", frame)
+                    except Exception as e:
+                        logging.warning(f"GUI Error: {e}. Switching to headless.")
+                        self.headless = True
+                
+                # Exit keys
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord('q'):
+                    self.running = False
+                elif key == ord('r'):
+                    self.load_config("config.json")
+                    self.dispatchers["Right"].gesture_map = self.config['gestures'].get('Right', {})
+                    self.dispatchers["Left"].gesture_map = self.config['gestures'].get('Left', {})
+                    logging.info("Config reloaded.")
+
+        finally:
+            self.camera.release()
+            try:
+                cv2.destroyAllWindows()
+            except:
+                pass
+            logging.info("App shutdown.")
+
+if __name__ == "__main__":
+    # call this AFTER window starts
+    time.sleep(1)
+    enforce_window()
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s'
+    )
+    app = GestureControlApp()
+    app.run()
+
+
+================================================================================
+FILE: manager.py
+================================================================================
+
+import time
+from collections import deque, Counter
+
+class StateManager:
+    def __init__(self, debounce_frames=5, cooldown_seconds=0.5):
+        self.debounce_frames = debounce_frames
+        self.cooldown_seconds = cooldown_seconds
+        self.gesture_buffer = deque(maxlen=debounce_frames)
+        self.last_action_time = 0
+        self.last_fired_gesture = None
+        self.stable_gesture = None
+
+    def update(self, detected_gesture):
+        # Add current detection to buffer (can be None)
+        self.gesture_buffer.append(detected_gesture)
+        
+        # Determine the most common gesture in the buffer
+        if len(self.gesture_buffer) < self.debounce_frames:
+            return None, 0.0
+
+        counts = Counter(self.gesture_buffer)
+        most_common, count = counts.most_common(1)[0]
+        confidence = count / self.debounce_frames
+
+        # Only update if the gesture is dominant and not None
+        if confidence >= 0.8 and most_common is not None:
+             self.stable_gesture = most_common
+        else:
+             self.stable_gesture = None
+             # If gesture is none for a while, we can reset last_fired
+             if all(g is None for g in self.gesture_buffer):
+                self.last_fired_gesture = None
+
+        return self.stable_gesture, confidence
+
+    def can_trigger(self):
+        # Change-Only Logic: Only trigger if the stable gesture is NEW
+        if self.stable_gesture is None:
+            return False
+            
+        if self.stable_gesture == self.last_fired_gesture:
+            return False
+
+        # Periodic cooldown still exists as a safety
+        curr_time = time.time()
+        if curr_time - self.last_action_time >= self.cooldown_seconds:
+            return True
+        return False
+
+    def trigger_success(self):
+        self.last_action_time = time.time()
+        self.last_fired_gesture = self.stable_gesture
+        # No need to clear buffer anymore, we rely on change-only logic
+
+if __name__ == "__main__":
+    # Test manager logic
+    mgr = StateManager(debounce_frames=3, cooldown_seconds=2.0)
+    
+    # Simulate a series of frames
+    frames = ["FIST", "FIST", "FIST", "PALM", "PALM", "PALM"]
+    for f in frames:
+        stable, conf = mgr.update(f)
+        print(f"Input: {f} | Stable: {stable} | Confidence: {conf:.2f}")
+        if stable and mgr.can_trigger():
+            print(">>> ACTION TRIGGERED!")
+            mgr.trigger_success()
+        time.sleep(0.1)
+
+
+================================================================================
+FILE: project_extract.py
+================================================================================
+
+#!/usr/bin/env python3
+# ============================================================================
+# PROJECT EXTRACTION UTILITY
+# ============================================================================
+# Purpose: Generate a comprehensive report of the entire Python codebase
+# Output: Single text file containing:
+#         1. Visual tree structure of project directories/files
+#         2. Complete content of all Python files
+#         3. Summary statistics
+# Usage: python Project_extract.py
+# Use Case: Code review, documentation, sharing codebase overview
+# ============================================================================
+
+"""
+Extract all Python files with their content and project structure into a single text file.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+
+def get_project_structure(root_dir, prefix="", max_depth=10, current_depth=0, ignore_dirs=None):
+    """
+    Generate a text representation of the project structure.
+    
+    Creates a tree-style visualization of directories and files.
+    Recursively traverses subdirectories while respecting depth limits.
+    
+    Args:
+        root_dir: Starting directory path
+        prefix: String prefix for tree indentation
+        max_depth: Maximum recursion depth to prevent infinite loops
+        current_depth: Current recursion level
+        ignore_dirs: Set of directory names to skip
+    
+    Returns:
+        String containing formatted directory tree
+    """
+    if ignore_dirs is None:
+        ignore_dirs = {".git", "__pycache__", ".pytest_cache", "*.egg-info", ".venv", "venv", "env"}
+    
+    if current_depth >= max_depth:
+        return ""
+    
+    structure = ""
+    try:
+        items = sorted(os.listdir(root_dir))
+    except PermissionError:
+        return ""
+    
+    dirs = []
+    files = []
+    
+    for item in items:
+        # Skip hidden files/dirs and common ignore patterns
+        if item.startswith("."):
+            continue
+        if item in ignore_dirs or any(item.endswith(x.replace("*", "")) for x in ignore_dirs if "*" in x):
+            continue
+        
+        item_path = os.path.join(root_dir, item)
+        if os.path.isdir(item_path):
+            dirs.append(item)
+        else:
+            files.append(item)
+    
+    # Add files first
+    for i, file in enumerate(files):
+        is_last_file = (i == len(files) - 1) and len(dirs) == 0
+        structure += f"{prefix}{'└── ' if is_last_file else '├── '}{file}\n"
+    
+    # Add directories
+    for i, dir_name in enumerate(dirs):
+        is_last = i == len(dirs) - 1
+        structure += f"{prefix}{'└── ' if is_last else '├── '}{dir_name}/\n"
+        
+        dir_path = os.path.join(root_dir, dir_name)
+        extension = "    " if is_last else "│   "
+        structure += get_project_structure(dir_path, prefix + extension, max_depth, current_depth + 1, ignore_dirs)
+    
+    return structure
+
+
+def extract_python_files(root_dir, output_file):
+    """
+    Extract all Python files and their content.
+    
+    Main extraction function that:
+    1. Walks through directory tree to find all .py files
+    2. Generates project structure visualization
+    3. Writes formatted output with all file contents
+    4. Provides summary statistics
+    
+    Args:
+        root_dir: Root directory to scan
+        output_file: Path to output text file
+    """
+    py_files = []
+    
+    # Collect all Python files
+    for root, dirs, files in os.walk(root_dir):
+        # Skip certain directories
+        dirs[:] = [d for d in dirs if d not in {".git", "__pycache__", ".pytest_cache", ".venv", "venv", "env"}]
+        
+        for file in files:
+            if file.endswith(".py"):
+                file_path = os.path.join(root, file)
+                py_files.append(file_path)
+    
+    # Sort files for consistent output
+    py_files.sort()
+    
+    # Write to output file
+    with open(output_file, "w", encoding="utf-8") as out:
+        # Header
+        out.write("=" * 80 + "\n")
+        out.write("PROJECT EXTRACTION REPORT\n")
+        out.write("=" * 80 + "\n\n")
+        
+        # Project Structure
+        out.write("PROJECT STRUCTURE:\n")
+        out.write("-" * 80 + "\n\n")
+        out.write(f"{os.path.basename(root_dir)}/\n")
+        out.write(get_project_structure(root_dir))
+        out.write("\n\n")
+        
+        # File Contents
+        out.write("=" * 80 + "\n")
+        out.write("FILE CONTENTS\n")
+        out.write("=" * 80 + "\n\n")
+        
+        for file_path in py_files:
+            # Calculate relative path
+            rel_path = os.path.relpath(file_path, root_dir)
+            
+            # Write file header
+            out.write(f"\n{'=' * 80}\n")
+            out.write(f"FILE: {rel_path}\n")
+            out.write(f"{'=' * 80}\n\n")
+            
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+                    out.write(content)
+            except Exception as e:
+                out.write(f"[ERROR] Could not read file: {str(e)}\n")
+            
+            out.write("\n")
+        
+        # Summary
+        out.write("\n" + "=" * 80 + "\n")
+        out.write(f"SUMMARY: {len(py_files)} Python files extracted\n")
+        out.write("=" * 80 + "\n")
+    
+    print(f"✓ Extraction complete!")
+    print(f"✓ Total Python files: {len(py_files)}")
+    print(f"✓ Output saved to: {output_file}")
+    print(f"✓ File size: {os.path.getsize(output_file) / 1024:.2f} KB")
+
+
+if __name__ == "__main__":
+    # Get project root (current directory)
+    project_root = os.getcwd()
+    
+    # Output file
+    output_filename = "project_extraction.txt"
+    output_path = os.path.join(project_root, output_filename)
+    
+    print(f"Extracting Python files from: {project_root}")
+    print(f"Output file: {output_path}\n")
+    
+    extract_python_files(project_root, output_path)
+
+
+================================================================================
+FILE: visualizer.py
+================================================================================
+
+import cv2
+import time
+
+class Visualizer:
+    def __init__(self, font_scale=0.8, thickness=2):
+        self.font = cv2.FONT_HERSHEY_DUPLEX
+        self.font_scale = font_scale
+        self.thickness = thickness
+        self.prev_time = 0
+
+    def draw_fps(self, frame):
+        curr_time = time.time()
+        fps = 1 / (curr_time - self.prev_time)
+        self.prev_time = curr_time
+        
+        # Display FPS
+        cv2.putText(frame, f"FPS: {int(fps)}", (10, 30), 
+                    self.font, self.font_scale, (0, 255, 0), self.thickness)
+        return frame
+
+    def draw_status(self, frame, label, gesture, stable=False, confidence=0.0):
+        # Determine color
+        color = (0, 255, 0) if (stable and gesture) else (0, 0, 255)
+        
+        # Determine position based on label
+        # Right hand on the right side, Left hand on the left
+        if label == "Right":
+            x, y = frame.shape[1] - 250, 70
+        else:
+            x, y = 10, 70
+            
+        text = f"{label}: {gesture}" if gesture else f"{label}: --"
+        
+        cv2.putText(frame, text, (x, y), 
+                    self.font, self.font_scale, color, self.thickness)
+        
+        # Progress bar
+        if gesture:
+            cv2.rectangle(frame, (x, y + 15), (x + 200, y + 30), (50, 50, 50), -1)
+            filled_w = int(200 * confidence)
+            cv2.rectangle(frame, (x, y + 15), (x + filled_w, y + 30), color, -1)
+        
+        return frame
+
+    def draw_hand_status(self, frame, hand_exists=False):
+        color = (0, 255, 0) if hand_exists else (0, 0, 255)
+        status = "HAND TRACKED" if hand_exists else "SEARCHING..."
+        cv2.circle(frame, (frame.shape[1]-20, 20), 10, color, -1)
+        # Use simple text
+        return frame
+
+if __name__ == "__main__":
+    # Test visualization
+    cam = cv2.VideoCapture(0)
+    viz = Visualizer()
+    while True:
+        ret, frame = cam.read()
+        if not ret: break
+        
+        frame = cv2.flip(frame, 1)
+        viz.draw_fps(frame)
+        viz.draw_status(frame, "FIST", stable=True, confidence=0.8)
+        viz.draw_hand_status(frame, True)
+        
+        cv2.imshow("Viz Test", frame)
+        if cv2.waitKey(1) & 0xFF == ord('q'): break
+    cam.release()
+    cv2.destroyAllWindows()
+
+
+================================================================================
+SUMMARY: 8 Python files extracted
+================================================================================

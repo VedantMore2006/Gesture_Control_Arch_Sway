@@ -83,7 +83,7 @@ class GestureControlApp:
         if self.headless:
             logging.info("GestureControlApp running in HEADLESS mode.")
         
-        logging.info("GestureControlApp V2 initialized.")
+        logging.info("GestureControlApp V3 initialized.")
 
     def load_config(self, path):
         try:

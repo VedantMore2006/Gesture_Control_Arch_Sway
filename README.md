@@ -37,7 +37,7 @@ The current configuration uses independent controllers for each hand:
 | ✋ **PALM** | All fingers extended | `swaymsg exec brave` |
 | ✌️ **PEACE** | Index + Middle up | `swaymsg exec kitty` |
 | ☝️ **POINT** | Index up only | `swaymsg floating toggle` |
-| 🤘 **YO** | Thumb + Index + Pinky up | **Type "HI"** (using `wtype`) |
+| 🤘 **YO** | Thumb + Index + Pinky up | **Type "HEY THERE"** (using `wtype`) |
 
 ---
 
