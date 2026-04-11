@@ -1,25 +1,20 @@
 {
   "gestures": {
     "Right": {
-      "FIST": [
+      "POINT": [
         "swaymsg",
         "workspace",
         "1"
       ],
-      "PALM": [
+      "PEACE": [
         "swaymsg",
         "workspace",
         "2"
       ],
-      "PEACE": [
+      "THREE": [
         "swaymsg",
         "workspace",
         "3"
-      ],
-      "POINT": [
-        "swaymsg",
-        "workspace",
-        "next"
       ],
       "YO": [
         "wtype",

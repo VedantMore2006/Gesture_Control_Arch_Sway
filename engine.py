@@ -63,6 +63,11 @@ class GestureEngine:
         # PEACE: [False, True, True, False, False]
         if finger_states[1] and finger_states[2] and not finger_states[3] and not finger_states[4]:
             return "PEACE"
+
+        # THREE: [*, True, True, True, False] (Index, Middle, Ring)
+        # Thumb is intentionally ignored to make this easier to perform naturally.
+        if finger_states[1] and finger_states[2] and finger_states[3] and not finger_states[4]:
+            return "THREE"
             
         # POINT: [False, True, False, False, False]
         if finger_states[1] and all(not s for s in finger_states[2:]):
@@ -84,3 +89,4 @@ if __name__ == "__main__":
     print(f"Fist Test: {engine.classify_gesture([False, False, False, False, False])}")
     print(f"Palm Test: {engine.classify_gesture([True, True, True, True, True])}")
     print(f"Peace Test: {engine.classify_gesture([False, True, True, False, False])}")
+    print(f"Three Test: {engine.classify_gesture([False, True, True, True, False])}")

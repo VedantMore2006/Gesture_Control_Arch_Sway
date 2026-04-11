@@ -10,7 +10,7 @@ The system is built on a decoupled pipeline optimized for low-latency dual-hand 
 
 1.  **Camera Layer (`camera.py`)**: Captures video (default 640x480), flips it for mirror view, and feeds the detector.
 2.  **Detection Layer (`detector.py`)**: Identifies up to **2 hands** simultaneously. Distinguishes between **Left** and **Right** hands.
-3.  **Engine Layer (`engine.py`)**: Converts landmarks into semantic states. Supports: `FIST`, `PALM`, `PEACE`, `POINT`, `YO`, and `THUMBS_UP`.
+3.  **Engine Layer (`engine.py`)**: Converts landmarks into semantic states. Supports: `FIST`, `PALM`, `PEACE`, `THREE`, `POINT`, `YO`, and `THUMBS_UP`.
     - **Sharp Detection (NEW)**: Uses a scale-based threshold (20% of hand size) to ensure gestures are intentional and "crisp".
 4.  **State Manager (`manager.py`)**: Implements **Change-Only** triggers using a rolling buffer. Actions fire only when a gesture **transitions** (e.g., FIST -> NEUTRAL -> FIST).
 5.  **Dispatcher Layer (`dispatcher.py`)**: Bridges gestures to the OS, executing `swaymsg`, shell commands, or keyboard emulation.
@@ -25,10 +25,9 @@ The current configuration uses independent controllers for each hand:
 ### 🖐️ Right Hand (Workspace & Navigation)
 | Gesture | Logic | Default Action |
 | :--- | :--- | :--- |
-| ✊ **FIST** | All fingers folded | `swaymsg workspace 1` |
-| ✋ **PALM** | All fingers extended | `swaymsg workspace 2` |
-| ✌️ **PEACE** | Index + Middle up | `swaymsg workspace 3` |
-| ☝️ **POINT** | Index up only | `swaymsg workspace next` |
+| ☝️ **POINT** | Index up only | `swaymsg workspace 1` |
+| ✌️ **PEACE** | Index + Middle up | `swaymsg workspace 2` |
+| 🤟 **THREE** | Index + Middle + Ring up | `swaymsg workspace 3` |
 
 ### 🤚 Left Hand (System & Control)
 | Gesture | Logic | Default Action |
